@@ -21,8 +21,8 @@ exports.root = (req, res, next) => {
     else res.render('index', {
       title: 'Index',
       user: req.user,
-      groupName: whatGroup(req.user.gidNumber),
-      displayAdminButton: displayAdminButton(req.user.gidNumber)
+      groupName: whatGroup(req.user.gid),
+      displayAdminButton: displayAdminButton(req.user.gid)
     });
 }
 

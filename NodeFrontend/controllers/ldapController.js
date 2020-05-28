@@ -20,7 +20,7 @@ module.exports = {
             var searchOptions = {
                 scope: 'sub',
                 filter: '(employeeNumber='+id+')',
-                attributes: ['uid', 'givenName', 'surname', 'mail', 'mobile']
+                attributes: ['uid', 'givenName', 'surname', 'mail', 'mobile', 'gidNumber']
             }
 
             // client search queries LDAP
@@ -36,7 +36,8 @@ module.exports = {
                         mail: entry.object.mail,
                         mobile: entry.object.mobile,
                         uid: entry.object.uid,
-                        id: id
+                        id: id,
+                        gid: entry.object.gidNumber
                     }
                     resolve(user);
                 });

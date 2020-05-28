@@ -4,7 +4,7 @@ var fs = require('fs');
 var nodemailer = require("nodemailer");
 
 module.exports = {
-    sendTokenMail: async (token, mail) => {
+    sendTokenMail: async (token, user) => {
         var MailService = nodemailer.createTransport({
             host: conf.mailhost,
             port: conf.mailport,
@@ -22,9 +22,10 @@ module.exports = {
     
         let info = await MailService.sendMail({
             from: '"CompSoc Admin" <admin@compsoc.ie>', // sender address
-            to: mail, // list of receivers
+            to: user.mail, // list of receivers
             subject: "CompSoc Profile: Login Link", // Subject line
-            html: "https://my.compsoc.ie/auth/login/"+token, // html body
+            //html: "https://my.compsoc.ie/auth/login/"+token, // html body
+            html: "<html><body><p>Hi "+user.firstName+"<br><br>Click the following link to <a href='https://my.compsoc.ie/auth/login/"+token+"'><b>log in</b></a><br>If you did not request to log in, you can safely ignore this email.<br><br>Kind Regards,<br>CompSoc Admins"
         });
     }
     
