@@ -1,7 +1,7 @@
 var req = require('require-yml');
 var axios = require('axios');
 var conf = req('/root/CompSocAccountManagement/NodeFrontend/config.yml');
-var dbController = require('./dbController');
+//var dbController = require('./dbController');
 var fs = require('fs');
 var ldap = require('ldapjs');
 var APIOptions = {
@@ -91,11 +91,11 @@ function checkLDAP(member) {
     });
 }
 
-function pushToDb(member) {
+/*function pushToDb(member) {
     // Check if user is already in DB
     if(!dbController.checkDB(member)) {
         dbController.registerPost(member);
         // Need to then go on send email to member and let them know they have an account
         // once they confirm info, push to LDAP
     }
-}
+}*/

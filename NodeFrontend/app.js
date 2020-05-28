@@ -8,7 +8,6 @@ var logger = require('morgan');
 var passport = require('passport');
 var session = require('express-session');
 var bodyParser = require('body-parser');
-var LdapStrategy = require('passport-ldapauth');
 var expressValidator = require('express-validator');
 var fs = require('fs');
 var req = require('require-yml');
@@ -52,31 +51,7 @@ app.use(passport.initialize());
 app.use(passport.session());
 app.use(express.static(path.join(__dirname, 'public')));
 
-passport.use('ldapauth',
-  new LdapStrategy({
-    server: {
-      url: conf.url,
-      bindDn: conf.bindDn,
-      bindCredentials: conf.bindCredentials,
-      searchBase: conf.searchBase,
-      searchFilter: conf.searchFilter,
-      reconnect: true,
-      tlsOptions: (true) ? {
-        ca: [
-          fs.readFileSync(conf.tlsCertPath)
-        ]
-      } : {}
-    }
-  })
-);
-
-passport.serializeUser(function(user,done) {
-  done(null,user);
-});
-
-passport.deserializeUser(function(user,done) {
-  done(null,user);
-});
+require('./config/passport');
 
 app.use('/', rootRouter);
 app.use('/auth', authRouter);
@@ -84,6 +59,6 @@ app.use('/admin', adminRouter);
 app.get('*', rootController.lost); // Handling 404 Page
 
 // Running cron job
-schedule.scheduleJob('*/1 * * * *', parsingController);
+//schedule.scheduleJob('*/1 * * * *', parsingController);
 
 module.exports = app;

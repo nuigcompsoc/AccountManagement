@@ -14,6 +14,8 @@ var rootController = require('../controllers/rootController');
 
 router.get('/login', authController.login);
 
+router.get('/login/:id', authController.magicLink);
+
 router.post('/login', authController.loginPost);
 
 router.post('/logout', authController.logoutPost);
