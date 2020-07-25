@@ -9,10 +9,11 @@ var passport = require('passport');
 var session = require('express-session');
 var bodyParser = require('body-parser');
 var expressValidator = require('express-validator');
+var schedule = require('node-schedule');
+
 var fs = require('fs');
 var req = require('require-yml');
 var conf = req('./config.yml');
-var schedule = require('node-schedule');
 
 var rootRouter = require('./routes/rootRouter');
 var authRouter = require('./routes/authRouter');
@@ -22,14 +23,14 @@ var rootController = require('./controllers/rootController');
 var parsingController = require('./controllers/parsingController');
 
 // Connect to database
-mongoose.Promise = global.Promise;
+//mongoose.Promise = global.Promise;
 
-const mongoURL = 'mongodb://'+conf.DBUSER+':'+conf.DBPASSWD+'@127.0.0.1:27017/'+conf.DB;
+/*const mongoURL = 'mongodb://'+conf.DBUSER+':'+conf.DBPASSWD+'@127.0.0.1:27017/'+conf.DB;
 mongoose.connect(mongoURL, {useNewUrlParser: true, useUnifiedTopology: true, useFindAndModify: false, useCreateIndex: true});
 
 mongoose.connection.on('error', (err) => {
   console.log('Mongoose Connection Error!', err);
-});
+});*/
 
 // view engine setup
 app.engine('.hbs', handlebars({defaultLayout: '../layout',extname: '.hbs'}));

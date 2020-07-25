@@ -5,7 +5,7 @@ var JWTStrategy = require('passport-jwt').Strategy,
     ExtractJWT = require('passport-jwt').ExtractJwt;
 var jwt = require('jsonwebtoken');
 var req = require('require-yml');
-var conf = req('/root/CompSocAccountManagement/NodeFrontend/config.yml');
+var conf = req('/root/AccountManagement/NodeFrontend/config.yml');
 var fs = require('fs');
 var ldapController = require('../controllers/ldapController');
 
@@ -17,7 +17,7 @@ var cookieExtractor = function(req) {
 
 var opts = {
     jwtFromRequest: cookieExtractor,
-    secretOrKey: conf.jwtsecret
+    secretOrKey: conf.jwtSecret
 }
 
 passport.use(new JWTStrategy(opts, async function (jwtPayload, done) {

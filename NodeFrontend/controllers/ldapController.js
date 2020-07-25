@@ -1,13 +1,13 @@
 var req = require('require-yml');
-var conf = req('/root/CompSocAccountManagement/NodeFrontend/config.yml');
+var conf = req('/root/AccountManagement/NodeFrontend/config.yml');
 var fs = require('fs');
 var ldap = require('ldapjs');
 var client = ldap.createClient({
-    url: conf.url,
+    url: conf.ldapsUrl,
     reconnect: true,
     tlsOptions: {
-        host: conf.ldaphost,
-        port: conf.ldapport,
+        host: conf.ldapHost,
+        port: conf.ldapPort,
         ca: [fs.readFileSync(conf.tlsCertPath)]
     }
 });

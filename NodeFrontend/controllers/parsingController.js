@@ -1,6 +1,6 @@
 var req = require('require-yml');
 var axios = require('axios');
-var conf = req('/root/CompSocAccountManagement/NodeFrontend/config.yml');
+var conf = req('/root/AccountManagement/NodeFrontend/config.yml');
 //var dbController = require('./dbController');
 var fs = require('fs');
 var ldap = require('ldapjs');
@@ -11,11 +11,11 @@ var APIOptions = {
     encodeOutput: true
 }
 var client = ldap.createClient({
-    url: conf.url,
+    url: conf.ldapsUrl,
     reconnect: true,
     tlsOptions: {
-        host: conf.ldaphost,
-        port: conf.ldapport,
+        host: conf.ldapHost,
+        port: conf.ldapPort,
         ca: [fs.readFileSync(conf.tlsCertPath)]
     }
 });
