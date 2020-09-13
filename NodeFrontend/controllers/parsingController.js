@@ -1,101 +1,303 @@
 var req = require('require-yml');
 var axios = require('axios');
+var Promise = require('bluebird');
 var conf = req('/root/AccountManagement/NodeFrontend/config.yml');
 //var dbController = require('./dbController');
+var crypto = require("crypto");
 var fs = require('fs');
-var ldap = require('ldapjs');
+var ldap = require('ldapjs-promise');
 var APIOptions = {
     method: conf.socspostmethod,
     username: conf.socsusername,
     password: conf.socspasswd,
     encodeOutput: true
 }
-var client = ldap.createClient({
-    url: conf.ldapsUrl,
-    reconnect: true,
-    tlsOptions: {
-        host: conf.ldapHost,
-        port: conf.ldapPort,
-        ca: [fs.readFileSync(conf.tlsCertPath)]
-    }
-});
+
+var nextUID;
+var pendingOperations = [];
 
 module.exports = async function () {
-    // client.bind sets up for authentication
-    client.bind(conf.bindDn, conf.bindCredentials, function(err) {
-        if (err) console.log(err);
+
+    var apiResults = await getMemberInfo();
+    var currentMembers = await searchReturnAll();
+    currentMembers = currentMembers.entries;
+
+    // get next available uidNumber
+    nextUID = currentMembers[currentMembers.length - 1]["uidNumber"];
+    nextUID++;
+
+    apiResults.forEach(e => {
+
+        var index;
+
+        if (Boolean(currentMembers.find( function (m, key) { index = key; return ( m.mail == e.Email ) } )) || 
+                Boolean(currentMembers.find( function (m, key) { index = key; return ( m.mobile == e.PhoneNumber ) } )) ||
+                    Boolean(currentMembers.find( function (m, key) { index = key; return ( m.employeeNumber == e.PhoneNumber ) } )))
+        {
+            // Make sure all attributes are up to date
+            var m = currentMembers[index];
+            modifyLDAP(m.dn, e, m);
+        }
+        else
+        {
+            // if user is not in ldap - add to ldap
+            addLDAP(e);
+        }
+        
     });
+}
 
-    var res = await getMemberInfo();
+async function searchReturnAll()
+{
 
-    // Piping into function that queries LDAP to see there are any new members
-    // Have to implement for loop as checkLDAP only takes one member at a time
-    res.forEach(member => {
-        var state = checkLDAP(member);
-        if (!state) pushToDb(member);
-        else if (state == -1) {
-            console.log('ERROR IN CONNECTION');
+    var client = ldap.createClient({
+        url: conf.ldapsUrl,
+        reconnect: true,
+        tlsOptions: {
+            host: conf.ldapHost,
+            port: conf.ldapPort,
+            ca: [fs.readFileSync(conf.tlsCertPath)]
         }
     });
-}
+    Promise.promisifyAll(client);
 
-async function getMemberInfo() {
-    try {
-        const date = new Date();
-        // Making a post request to socs website to get JSON info
-        var res = await axios.post(conf.socsurl, null, { params: APIOptions });
-        // Writing JSON to file as backup for 24 hours or in case we need it again
-        fs.writeFile(__dirname + '/../members/' + date.getHours() + date.getMinutes() + ".txt", JSON.stringify(res.data.Response.data), function (err) {
-            if (err) return err;
-            console.log("API: Members > " + date.getHours() + date.getMinutes() + ".txt");
-        });
-        return res.data.Response.data;
-    } catch (err) {
-        return err;
+    var searchOptions = {
+        scope: 'sub',
+        filter: '(uidNumber=*)',
+        attributes: ['dn', 'uidNumber', 'uid', 'employeeNumber', 'mail', 'mobile']
     }
+
+    client.bindAsync(conf.bindDn, conf.bindSecret);
+
+    const results = await client.searchReturnAll(conf.searchBase, searchOptions);
+    return results;
 }
 
-function checkLDAP(member) {
-    // for now we'll assume the function only recieves one member at a time
-    // We're filtering by the student's ID and just returning their username but we don't need to
+async function doSearch(member) {
+
+    var client = ldap.createClient({
+        url: conf.ldapsUrl,
+        reconnect: true,
+        tlsOptions: {
+            host: conf.ldapHost,
+            port: conf.ldapPort,
+            ca: [fs.readFileSync(conf.tlsCertPath)]
+        }
+    });
+    Promise.promisifyAll(client);
+
+    client.bindAsync(conf.bindDn, conf.bindSecret);
+
     var searchOptions = {
         scope: 'sub',
         filter: '(employeeNumber='+member.MemberID+')',
         attributes: ['uid']
     }
 
-    // client search queries LDAP
-    client.search(conf.searchBase, searchOptions, function(err, res) {
-        if (err) {
-            console.log('Error occurred while ldap search');
-            return -1;
-        } else {
+    await client.searchAsync(conf.searchBase, searchOptions)
+        .then(function (res) { // Handle the search result processing
             res.on('searchEntry', function (entry) {
                 // If the member exists in ldap with that student ID, it will return true here.
-                //if (entry.object) console.log(member.MemberID + " Exists");
+                //console.log(entry.object);
                 return true;
-            });
-            res.on('searchReference', function (referral) {
-                console.log('Referral', referral);
             });
             res.on('error', function (err) {
                 console.log('Error is', err);
             });
-            // Returns long log on the connection
-            /*res.on('end', function (result) {
-                console.log('Result is', result);
-            });*/
-        }
-        // Member is not in LDAP
-        return false;
-    });
+            res.on('end', function (result) {
+                //console.log("here1");
+            });
+        })  
+        .catch(function (err) { // Catch potential errors and handle them
+            console.error('Error on search', err);
+        });
+
+    //client.destroy();
 }
 
-/*function pushToDb(member) {
-    // Check if user is already in DB
-    if(!dbController.checkDB(member)) {
-        dbController.registerPost(member);
-        // Need to then go on send email to member and let them know they have an account
-        // once they confirm info, push to LDAP
+async function getMemberInfo() {
+    try {
+        // Making a post request to socs website to get JSON info
+        var res = await axios.post(conf.socsurl, null, { params: APIOptions });
+        return res.data.Response.data;
+    } catch (err) {
+        return err;
     }
-}*/
+}
+
+async function addLDAP(member) {
+
+    var client = ldap.createClient({
+        url: conf.ldapsUrl,
+        reconnect: true,
+        tlsOptions: {
+            host: conf.ldapHost,
+            port: conf.ldapPort,
+            ca: [fs.readFileSync(conf.tlsCertPath)]
+        }
+    });
+    Promise.promisifyAll(client);
+
+    if (!member.FirstName) member.FirstName = 'N/A';
+    if (!member.LastName) member.LastName = 'N/A';
+    if (!member.PhoneNumber) member.PhoneNumber = 'N/A';
+    var uid = member.Email.split("@")[0].replace('.', '');
+
+    if (member.Email && member.MemberID)
+    {
+        var entry = {
+            cn: member.FirstName + " " + member.LastName,
+            mail: [member.Email],
+            employeeNumber: member.MemberID,
+            gecos: member.FirstName + " " + member.LastName,
+            gidNumber: '100',
+            givenName: member.FirstName,
+            homeDirectory: '/home/users/' + uid,
+            loginShell: '/bin/bash',
+            mobile: member.PhoneNumber,
+            objectClass: ['inetOrgPerson', 'posixAccount', 'top', 'shadowAccount'],
+            userPassword: crypto.randomBytes(20).toString('hex'),
+            shadowMax: '99999',
+            shadowWarning: '7',
+            sn: member.LastName,
+            uidNumber: nextUID
+        };
+
+        nextUID++;
+
+        // client.bind sets up for authentication
+        client.bindAsync(conf.bindDn, conf.bindSecret);
+
+        client.addAsync('uid=' + uid + ',ou=inactivepeople,' + conf.searchBase, entry, function(err) {
+            if (err) {
+                console.log(member);
+                console.log(entry);
+                console.log(err);
+                return false;
+            }
+        });
+
+        return true;
+    }
+    else
+    {
+        return false;
+    }
+}
+
+async function modifyLDAP(uidPath, apiMemberInfo, ldapMemberInfo) {
+
+    if (apiMemberInfo.PhoneNumber != ldapMemberInfo.mobile && apiMemberInfo.PhoneNumber != '') 
+    {
+        var client = ldap.createClient({
+            url: conf.ldapsUrl,
+            reconnect: true,
+            tlsOptions: {
+                host: conf.ldapHost,
+                port: conf.ldapPort,
+                ca: [fs.readFileSync(conf.tlsCertPath)]
+            }
+        });
+        Promise.promisifyAll(client);
+
+        // client.bind sets up for authentication
+        client.bindAsync(conf.bindDn, conf.bindSecret);
+
+        if (ldapMemberInfo.mobile == undefined)
+        {
+            var operation = 'add';
+        }
+        else
+        {
+            var operation = 'replace';
+        }
+
+        var change = new ldap.Change({
+            operation: operation,
+            modification: {
+                mobile: apiMemberInfo.PhoneNumber
+            }
+        });
+
+        client.modifyAsync(uidPath, change, function (err) {
+            if (err)
+            {
+                console.log(err);
+                console.log(apiMemberInfo);
+            }
+        });
+    }
+
+    if (apiMemberInfo.Email != ldapMemberInfo.mail && apiMemberInfo.Email != undefined) 
+    {
+
+        var client = ldap.createClient({
+            url: conf.ldapsUrl,
+            reconnect: true,
+            tlsOptions: {
+                host: conf.ldapHost,
+                port: conf.ldapPort,
+                ca: [fs.readFileSync(conf.tlsCertPath)]
+            }
+        });
+        Promise.promisifyAll(client);
+
+        // client.bind sets up for authentication
+        client.bindAsync(conf.bindDn, conf.bindSecret);
+
+        if (ldapMemberInfo.mail == undefined)
+        {
+            var operation = 'add';
+        }
+        else
+        {
+            var operation = 'replace';
+        }
+
+        var change = new ldap.Change({
+            operation: operation,
+            modification: {
+                mail: apiMemberInfo.Email
+            }
+        });
+
+        client.modifyAsync(uidPath, change);
+    }
+
+    if (apiMemberInfo.MemberID != ldapMemberInfo.employeeNumber && apiMemberInfo.MemberID != undefined) 
+    {
+
+        var client = ldap.createClient({
+            url: conf.ldapsUrl,
+            reconnect: true,
+            tlsOptions: {
+                host: conf.ldapHost,
+                port: conf.ldapPort,
+                ca: [fs.readFileSync(conf.tlsCertPath)]
+            }
+        });
+        Promise.promisifyAll(client);
+
+        // client.bind sets up for authentication
+        client.bindAsync(conf.bindDn, conf.bindSecret);
+
+        if (ldapMemberInfo.employeeNumber == undefined)
+        {
+            var operation = 'add';
+        }
+        else
+        {
+            var operation = 'replace';
+        }
+
+        var change = new ldap.Change({
+            operation: operation,
+            modification: {
+                employeeNumber: apiMemberInfo.MemberID
+            }
+        });
+
+        client.modifyAsync(uidPath, change);
+    }
+
+}
