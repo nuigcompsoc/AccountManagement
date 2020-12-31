@@ -1,4 +1,6 @@
 # CompSocAccountManagement
+## Depreciated as of 30/12/2020 as the project has been merged into nuigcompsoc/compsoc.ie
+
 This app is being made to automate all server account creation and amendmentation in NUI Galway's Computer Society.
 
 The idea is that we will pull a JSON file containing all member data from an external site, this will then be parsed in the NodeJs application and then added to LDAP after members have completed the process of confirming the information on the site via a link that will be emailed out.
